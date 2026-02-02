@@ -1,6 +1,7 @@
 package com.restfulbooker.stepdefinitions;
 
 import com.restfulbooker.steps.AuthSteps;
+import com.restfulbooker.utils.CucumberData;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
@@ -13,8 +14,8 @@ public class AuthStepDefinitions {
 
     @When("I authenticate with username {string} and password {string}")
     @Given("I am authenticated with username {string} and password {string}")
-    public void authenticateWithCredentials(String username, String password) {
-        authSteps.createAuthToken(username, password);
+    public void authenticateWithCredentials(Object username, Object password) {
+        authSteps.createAuthToken(String.valueOf(username), String.valueOf(password));
     }
 
     @Then("the authentication should return status code {int}")

@@ -11,8 +11,8 @@ Feature: Booking Management
   @CreateBooking
   Scenario: Create a new booking
     When I create a booking with the following details:
-      | firstname | lastname | totalprice | depositpaid | checkin    | checkout   | additionalneeds |
-      | Prakhar      | Singh      | 100        | true        | 2024-01-01 | 2024-01-05 | Breakfast       |
+      | firstname         | lastname         | totalprice         | depositpaid         | checkin         | checkout         | additionalneeds         |
+      | booking:firstname | booking:lastname | booking:totalprice | booking:depositpaid | booking:checkin | booking:checkout | booking:additionalneeds |
     Then the booking should be created successfully
 
   @GetBooking
@@ -28,30 +28,30 @@ Feature: Booking Management
 
   @UpdateBooking
   Scenario: Update an existing booking
-    Given I am authenticated with username "admin" and password "password123"
+    Given I am authenticated with username "auth:username" and password "auth:password"
     When I create a booking with the following details:
-      | firstname | lastname | totalprice | depositpaid | checkin    | checkout   | additionalneeds |
-      | Prakhar      | Singh    | 200        | false       | 2024-02-01 | 2024-02-10 | Lunch           |
-    And I update the created booking with firstname "Ravi" and lastname "Kumar"
+      | firstname         | lastname         | totalprice         | depositpaid         | checkin         | checkout         | additionalneeds         |
+      | booking:firstname | booking:lastname | booking:totalprice | booking:depositpaid | booking:checkin | booking:checkout | booking:additionalneeds |
+    And I update the created booking with firstname "update:firstname" and lastname "update:lastname"
     Then the response status code should be 200
     And the booking details should match:
-      | firstname | lastname |
-      | Ravi     | Kumar  |
+      | firstname        | lastname        |
+      | update:firstname | update:lastname |
 
   @PartialUpdate
   Scenario: Partially update a booking
-    Given I am authenticated with username "admin" and password "password123"
+    Given I am authenticated with username "auth:username" and password "auth:password"
     When I create a booking with the following details:
-      | firstname | lastname | totalprice | depositpaid | checkin    | checkout   | additionalneeds |
-      | Bob       | Wilson   | 150        | true        | 2024-03-01 | 2024-03-05 | Dinner          |
-    And I partially update the booking with firstname "Robert"
+      | firstname         | lastname         | totalprice         | depositpaid         | checkin         | checkout         | additionalneeds         |
+      | booking:firstname | booking:lastname | booking:totalprice | booking:depositpaid | booking:checkin | booking:checkout | booking:additionalneeds |
+    And I partially update the booking with firstname "partial:firstname"
     Then the response status code should be 200
 
   @DeleteBooking
   Scenario: Delete a booking
-    Given I am authenticated with username "admin" and password "password123"
+    Given I am authenticated with username "auth:username" and password "auth:password"
     When I create a booking with the following details:
-      | firstname | lastname | totalprice | depositpaid | checkin    | checkout   | additionalneeds |
-      | Alice     | Brown    | 300        | true        | 2024-04-01 | 2024-04-15 | None            |
+      | firstname         | lastname         | totalprice         | depositpaid         | checkin         | checkout         | additionalneeds         |
+      | booking:firstname | booking:lastname | booking:totalprice | booking:depositpaid | booking:checkin | booking:checkout | booking:additionalneeds |
     And I delete the created booking
     Then the response status code should be 201
