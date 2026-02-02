@@ -54,7 +54,7 @@ class FailureReportEnhancer:
         with open(self.output_path, 'w') as f:
             json.dump(report, f, indent=2)
 
-        print("✅ Enhancement complete")
+        print("Enhancement complete")
         return report
 
     def _add_failure_patterns(self, report):
