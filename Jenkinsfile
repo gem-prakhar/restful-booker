@@ -51,7 +51,7 @@ pipeline {
                     echo "================================================"
                     echo "Starting Test Execution Pipeline"
                     echo "Environment: ${ENVIRONMENT}"
-                    echo "Tags: ${TAGS ?: 'All tests'}"
+//                     echo "Tags: ${TAGS ?: 'All tests'}"
                     echo "Build: ${BUILD_NUMBER}"
                     echo "================================================"
 
