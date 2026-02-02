@@ -10,20 +10,16 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Custom Cucumber plugin that generates AI-consumable JSON reports
- * focused on test failures and execution context.
- */
+
 public class AIFailureAnalyzerPlugin implements ConcurrentEventListener {
 
     private final String outputPath;
     private final Map<String, FeatureResult> featureResults = new ConcurrentHashMap<>();
     private final Map<String, ScenarioResult> scenarioResults = new ConcurrentHashMap<>();
+    private final Map<String, TestCase> testCaseMap = new ConcurrentHashMap<>();
     private final TestRunMetadata metadata = new TestRunMetadata();
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
@@ -61,6 +57,9 @@ public class AIFailureAnalyzerPlugin implements ConcurrentEventListener {
         TestCase testCase = event.getTestCase();
         String scenarioId = generateScenarioId(testCase);
 
+        // Store the test case for later reference
+        testCaseMap.put(scenarioId, testCase);
+
         ScenarioResult scenario = new ScenarioResult();
         scenario.scenarioName = testCase.getName();
         scenario.featureName = testCase.getUri().toString();
@@ -91,34 +90,44 @@ public class AIFailureAnalyzerPlugin implements ConcurrentEventListener {
             // Categorize the scenario result
             updateFeatureResult(testCase, scenario);
         }
+
+        // Clean up test case reference
+        testCaseMap.remove(scenarioId);
     }
 
     private void handleTestStepStarted(TestStepStarted event) {
-        if (event.getTestStep() instanceof PickleStepTestStep) {
-            PickleStepTestStep step = (PickleStepTestStep) event.getTestStep();
-            String scenarioId = generateScenarioId(step.getTestCase());
-            ScenarioResult scenario = scenarioResults.get(scenarioId);
+        TestStep testStep = event.getTestStep();
 
-            if (scenario != null) {
+        if (testStep instanceof PickleStepTestStep) {
+            PickleStepTestStep step = (PickleStepTestStep) testStep;
+
+            // Find the current scenario by matching step location
+            // We need to iterate through active scenarios
+            ScenarioResult currentScenario = findCurrentScenario(step);
+
+            if (currentScenario != null) {
                 StepResult stepResult = new StepResult();
                 stepResult.keyword = step.getStep().getKeyword();
                 stepResult.text = step.getStep().getText();
                 stepResult.line = step.getStep().getLine();
                 stepResult.startTime = event.getInstant().toString();
 
-                scenario.steps.add(stepResult);
+                currentScenario.steps.add(stepResult);
             }
         }
     }
 
     private void handleTestStepFinished(TestStepFinished event) {
-        if (event.getTestStep() instanceof PickleStepTestStep) {
-            PickleStepTestStep step = (PickleStepTestStep) event.getTestStep();
-            String scenarioId = generateScenarioId(step.getTestCase());
-            ScenarioResult scenario = scenarioResults.get(scenarioId);
+        TestStep testStep = event.getTestStep();
 
-            if (scenario != null && !scenario.steps.isEmpty()) {
-                StepResult stepResult = scenario.steps.get(scenario.steps.size() - 1);
+        if (testStep instanceof PickleStepTestStep) {
+            PickleStepTestStep step = (PickleStepTestStep) testStep;
+
+            // Find the current scenario
+            ScenarioResult currentScenario = findCurrentScenario(step);
+
+            if (currentScenario != null && !currentScenario.steps.isEmpty()) {
+                StepResult stepResult = currentScenario.steps.get(currentScenario.steps.size() - 1);
                 Result result = event.getResult();
 
                 stepResult.status = result.getStatus().toString();
@@ -131,12 +140,54 @@ public class AIFailureAnalyzerPlugin implements ConcurrentEventListener {
                     stepResult.errorType = result.getError().getClass().getName();
 
                     // Mark this as the failing step
-                    if (scenario.failingStep == null) {
-                        scenario.failingStep = stepResult;
+                    if (currentScenario.failingStep == null) {
+                        currentScenario.failingStep = stepResult;
                     }
                 }
             }
         }
+    }
+
+    /**
+     * Find the current scenario by matching the step's URI with active test cases
+     */
+    private ScenarioResult findCurrentScenario(PickleStepTestStep step) {
+        // Get the step's URI and line
+        String stepUri = step.getUri().toString();
+        int stepLine = step.getStep().getLine();
+
+        // Find the scenario that contains this step
+        for (Map.Entry<String, ScenarioResult> entry : scenarioResults.entrySet()) {
+            String scenarioId = entry.getKey();
+            ScenarioResult scenario = entry.getValue();
+            TestCase testCase = testCaseMap.get(scenarioId);
+
+            if (testCase != null) {
+                // Check if this step belongs to this test case
+                if (testCase.getUri().toString().equals(stepUri)) {
+                    // Check if step is within scenario line range (simplified check)
+                    // In most cases, there's only one active scenario at a time
+                    if (!scenario.steps.isEmpty() ||
+                            (stepLine >= scenario.line)) {
+                        return scenario;
+                    }
+                }
+            }
+        }
+
+        // Fallback: return the most recently started scenario
+        // This works because scenarios are processed sequentially
+        ScenarioResult lastScenario = null;
+        for (ScenarioResult scenario : scenarioResults.values()) {
+            if (scenario.endTime == null) { // Scenario still running
+                if (lastScenario == null ||
+                        scenario.startTime.compareTo(lastScenario.startTime) > 0) {
+                    lastScenario = scenario;
+                }
+            }
+        }
+
+        return lastScenario;
     }
 
     private void updateFeatureResult(TestCase testCase, ScenarioResult scenario) {
@@ -161,6 +212,10 @@ public class AIFailureAnalyzerPlugin implements ConcurrentEventListener {
             case UNDEFINED:
                 feature.undefinedScenarios++;
                 feature.undefined.add(scenario);
+                break;
+            case AMBIGUOUS:
+            case UNUSED:
+                // Handle other statuses as needed
                 break;
         }
     }
