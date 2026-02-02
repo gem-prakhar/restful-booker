@@ -602,9 +602,8 @@ def generate_html_report(report_data, output_path):
         failures_section=generate_failures_section(report_data)
     )
 
-    with open(output_path, 'w') as f:
+    with open(output_path, 'w', encoding='utf-8') as f:
         f.write(html_content)
-
     print(f"✅ HTML report generated: {output_path}")
 
 
@@ -616,7 +615,7 @@ def main():
     args = parser.parse_args()
 
     print(f"Loading report from: {args.input}")
-    with open(args.input, 'r') as f:
+    with open(args.input, 'r', encoding='utf-8') as f:
         report_data = json.load(f)
 
     generate_html_report(report_data, args.output)
