@@ -604,7 +604,7 @@ def generate_html_report(report_data, output_path):
 
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(html_content)
-    print(f"✅ HTML report generated: {output_path}")
+    print(f"HTML report generated: {output_path}")
 
 
 def main():
