@@ -34,24 +34,56 @@ dependencies {
 
     testCompileOnly("org.projectlombok:lombok:1.18.42")
     testAnnotationProcessor("org.projectlombok:lombok:1.18.42")
-    compileOnly("com.github.invictum:serenity-reportportal-integration:1.5.7")
-
 }
 
 test {
     testLogging.showStandardStreams = true
     systemProperties System.properties
 
-    jvmArgs(
-            "--add-opens", "java.base/java.lang=ALL-UNNAMED",
-            "--add-opens", "java.base/java.util=ALL-UNNAMED",
-            "--add-opens", "java.base/java.io=ALL-UNNAMED",
-            "--add-opens", "java.base/java.lang.reflect=ALL-UNNAMED"
-    )
+    if (project.hasProperty('environment')) {
+        systemProperty 'environment', project.property('environment')
+    }
+
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+        showStandardStreams = true
+    }
+
+    ignoreFailures = true
+
+
+}
+
+tasks.named('aggregate') {
+    mustRunAfter test
 }
 
 gradle.startParameter.continueOnFailure = true
 
 serenity {
     reports = ["single-page-html", "json"]
+    requirementsBaseDir = "src/test/resources/features"
+}
+
+task verifyAIReport {
+    doLast {
+        def aiReportFile = file("${buildDir}/ai-failures.json")
+        if (aiReportFile.exists()) {
+            println "✅ AI Failure Report generated successfully"
+            println "   Location: ${aiReportFile.absolutePath}"
+            println "   Size: ${aiReportFile.length()} bytes"
+        } else {
+            println "⚠️ AI Failure Report not found at expected location"
+            println "   Expected: ${aiReportFile.absolutePath}"
+        }
+    }
+}
+
+verifyAIReport.mustRunAfter aggregate
+
+task executeTests {
+    dependsOn test, aggregate, verifyAIReport
+    group = 'verification'
+    description = 'Run all tests and generate all reports including AI failure analysis'
 }

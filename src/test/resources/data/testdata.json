@@ -1,0 +1,22 @@
+{
+  "auth": {
+    "username": "admin",
+    "password": "password123"
+  },
+  "booking": {
+    "firstname": "Prakhar",
+    "lastname": "Singh",
+    "totalprice": 100,
+    "depositpaid": true,
+    "checkin": "2024-01-01",
+    "checkout": "2024-01-05",
+    "additionalneeds": "Breakfast"
+  },
+  "update": {
+    "firstname": "Ravi",
+    "lastname": "Kumar"
+  },
+  "partial": {
+    "firstname": "Robert"
+  }
+}

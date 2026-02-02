@@ -12,7 +12,8 @@ import org.junit.runner.RunWith;
         plugin = {
                 "pretty",
                 "html:target/cucumber-reports/cucumber.html",
-                "json:target/cucumber-reports/cucumber.json"
+                "json:target/cucumber-reports/cucumber.json",
+                "com.restfulbooker.utils.AIFailureAnalyzerPlugin:target/ai-failures.json"
         },
         monochrome = true
 )
