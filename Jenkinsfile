@@ -4,7 +4,6 @@ pipeline {
     environment {
         // Test execution environment
         ENVIRONMENT = "${params.ENVIRONMENT ?: 'default'}"
-        TAGS = "${params.TAGS ?: ''}"
 
         // Report paths
         SERENITY_REPORT_DIR = "${WORKSPACE}/target/site/serenity"
@@ -21,11 +20,6 @@ pipeline {
             name: 'ENVIRONMENT',
             choices: ['default', 'staging', 'production'],
             description: 'Target environment for test execution'
-        )
-        string(
-            name: 'TAGS',
-            defaultValue: '',
-            description: 'Cucumber tags to filter tests (e.g., @Booking, @CreateBooking)'
         )
         booleanParam(
             name: 'GENERATE_AI_REPORT',
@@ -51,7 +45,6 @@ pipeline {
                     echo "================================================"
                     echo "Starting Test Execution Pipeline"
                     echo "Environment: ${ENVIRONMENT}"
-//                     echo "Tags: ${TAGS ?: 'All tests'}"
                     echo "Build: ${BUILD_NUMBER}"
                     echo "================================================"
 
@@ -71,10 +64,6 @@ pipeline {
                 script {
                     def gradleCommand = "./gradlew clean test aggregate"
 
-                    // Add tags if specified
-                    if (TAGS) {
-                        gradleCommand += " -Dcucumber.filter.tags=\"${TAGS}\""
-                    }
 
                     // Add environment property
                     gradleCommand += " -Denvironment=${ENVIRONMENT}"
