@@ -124,7 +124,16 @@ task retryFailedTests(type: Test) {
             def failedScenarios = rerunFile.text.trim()
             println "Retrying failed scenarios: ${failedScenarios}"
 
-            systemProperty 'cucumber.features', failedScenarios
+            def normalizedFeatures = failedScenarios
+                    .readLines()
+                    .collect { line ->
+                        line
+                                .replace("file:///", "")
+                                .replace(project.projectDir.absolutePath + File.separator, "")
+                    }
+                    .join(",")
+
+            systemProperty 'cucumber.features', normalizedFeatures
             systemProperty 'maxRetries', project.hasProperty('maxRetries') ? project.property('maxRetries') : '3'
         }
     }
