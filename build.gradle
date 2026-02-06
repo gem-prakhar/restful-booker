@@ -36,7 +36,13 @@ dependencies {
     testAnnotationProcessor("org.projectlombok:lombok:1.18.42")
     compileOnly("com.github.invictum:serenity-reportportal-integration:1.5.7")
 }
-
+tasks.withType(Test).configureEach {
+    if (System.getProperty("testClass")) {
+        filter {
+            includeTestsMatching System.getProperty("testClass")
+        }
+    }
+}
 test {
     testLogging.showStandardStreams = true
     systemProperties System.properties
@@ -88,7 +94,7 @@ task runInitialTests(type: Test) {
     ignoreFailures = true
 
     doLast {
-        if (file("${buildDir}/rerun.txt").exists()) {
+        if (file("target/rerun.txt").exists()) {
             println "First run complete. Failures detected, will retry."
         } else {
             println "All tests passed on first attempt!"
@@ -109,11 +115,11 @@ task retryFailedTests(type: Test) {
 
 
     onlyIf {
-        file("${buildDir}/rerun.txt").exists()
+        file("target/rerun.txt").exists()
     }
 
     doFirst {
-        def rerunFile = file("${buildDir}/rerun.txt")
+        def rerunFile = file("target/rerun.txt")
         if (rerunFile.exists()) {
             def failedScenarios = rerunFile.text.trim()
             println "Retrying failed scenarios: ${failedScenarios}"
@@ -130,7 +136,7 @@ task testWithRetry {
     dependsOn runInitialTests
 
     doLast {
-        def rerunFile = file("${buildDir}/rerun.txt")
+        def rerunFile = file("target/rerun.txt")
         def maxRetryRounds = project.hasProperty('maxRetryRounds') ?
                 Integer.parseInt(project.property('maxRetryRounds')) : 2
 
@@ -165,7 +171,7 @@ gradle.startParameter.continueOnFailure = true
 
 serenity {
     reports = ["single-page-html", "json"]
-    requirementsBaseDir = "src/test/resources/features"
+    requirementsBaseDir = "src/test/resources"
 }
 
 task verifyAIReport {
