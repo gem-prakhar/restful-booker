@@ -34,6 +34,7 @@ dependencies {
 
     testCompileOnly("org.projectlombok:lombok:1.18.42")
     testAnnotationProcessor("org.projectlombok:lombok:1.18.42")
+    compileOnly("com.github.invictum:serenity-reportportal-integration:1.5.7")
 }
 
 test {
@@ -52,6 +53,12 @@ test {
         systemProperty 'environment', project.property('environment')
     }
 
+    if (project.hasProperty('maxRetries')) {
+        systemProperty 'maxRetries', project.property('maxRetries')
+    } else {
+        systemProperty 'maxRetries', '3'
+    }
+
     testLogging {
         events "passed", "skipped", "failed"
         exceptionFormat "full"
@@ -59,9 +66,81 @@ test {
     }
 
     ignoreFailures = true
-
-
 }
+
+task runInitialTests(type: Test) {
+    testLogging.showStandardStreams = true
+    systemProperties System.properties
+
+    if (project.hasProperty('environment')) {
+        systemProperty 'environment', project.property('environment')
+    }
+
+    systemProperty 'maxRetries', '0'
+
+    ignoreFailures = true
+
+    doLast {
+        if (file("${buildDir}/rerun.txt").exists()) {
+            println "First run complete. Failures detected, will retry."
+        } else {
+            println "All tests passed on first attempt!"
+        }
+    }
+}
+
+task retryFailedTests(type: Test) {
+    testLogging.showStandardStreams = true
+    systemProperties System.properties
+
+    onlyIf {
+        file("${buildDir}/rerun.txt").exists()
+    }
+
+    doFirst {
+        def rerunFile = file("${buildDir}/rerun.txt")
+        if (rerunFile.exists()) {
+            def failedScenarios = rerunFile.text.trim()
+            println "Retrying failed scenarios: ${failedScenarios}"
+
+            systemProperty 'cucumber.features', failedScenarios
+            systemProperty 'maxRetries', project.hasProperty('maxRetries') ? project.property('maxRetries') : '3'
+        }
+    }
+
+    ignoreFailures = true
+}
+
+task testWithRetry {
+    dependsOn runInitialTests
+
+    doLast {
+        def rerunFile = file("${buildDir}/rerun.txt")
+        def maxRetryRounds = project.hasProperty('maxRetryRounds') ?
+                Integer.parseInt(project.property('maxRetryRounds')) : 2
+
+        for (int i = 1; i <= maxRetryRounds && rerunFile.exists(); i++) {
+            println "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            println "Retry Round ${i} of ${maxRetryRounds}"
+            println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+
+            tasks.retryFailedTests.execute()
+
+            // Check if there are still failures
+            if (!rerunFile.exists()) {
+                println "\nAll tests passed after ${i} retry round(s)!"
+                break
+            } else if (i == maxRetryRounds) {
+                println "\nSome tests still failing after ${maxRetryRounds} retry rounds"
+                println "Failed scenarios:"
+                println rerunFile.text
+            }
+        }
+    }
+
+    finalizedBy aggregate
+}
+
 
 tasks.named('aggregate') {
     mustRunAfter test
@@ -77,21 +156,48 @@ serenity {
 task verifyAIReport {
     doLast {
         def aiReportFile = file("${buildDir}/ai-failures.json")
+        def rerunSummaryFile = file("${buildDir}/rerun-summary.json")
+
         if (aiReportFile.exists()) {
-            println "✅ AI Failure Report generated successfully"
+            println "AI Failure Report generated successfully"
             println "   Location: ${aiReportFile.absolutePath}"
             println "   Size: ${aiReportFile.length()} bytes"
+
+            // Parse and display summary
+            def reportText = aiReportFile.text
+            if (reportText.contains('"retryMetadata"')) {
+                println "\nRetry Statistics:"
+                if (reportText.contains('"scenariosPassedAfterRetry"')) {
+                    def passedAfterRetry = (reportText =~ /"scenariosPassedAfterRetry":\s*(\d+)/)[0][1]
+                    println "   Scenarios passed after retry: ${passedAfterRetry}"
+                }
+                if (reportText.contains('"scenariosFailedAllRetries"')) {
+                    def failedAllRetries = (reportText =~ /"scenariosFailedAllRetries":\s*(\d+)/)[0][1]
+                    println "   Scenarios failed all retries: ${failedAllRetries}"
+                }
+            }
         } else {
-            println "⚠️ AI Failure Report not found at expected location"
+            println "AI Failure Report not found at expected location"
             println "   Expected: ${aiReportFile.absolutePath}"
+        }
+
+        if (rerunSummaryFile.exists()) {
+            println "\nRetry Summary generated successfully"
+            println "   Location: ${rerunSummaryFile.absolutePath}"
         }
     }
 }
 
 verifyAIReport.mustRunAfter aggregate
 
+task executeTestsWithRetry {
+    dependsOn testWithRetry, aggregate, verifyAIReport
+    group = 'verification'
+    description = 'Run all tests with retry mechanism and generate all reports including AI failure analysis'
+}
+
 task executeTests {
     dependsOn test, aggregate, verifyAIReport
     group = 'verification'
-    description = 'Run all tests and generate all reports including AI failure analysis'
+    description = 'Run all tests and generate all reports including AI failure analysis (no retry)'
 }

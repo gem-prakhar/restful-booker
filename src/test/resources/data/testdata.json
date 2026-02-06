@@ -1,6 +1,7 @@
 {
   "auth": {
     "username": "admin",
+    "username_invalid": "invalidUser",
     "password": "password123"
   },
   "booking": {

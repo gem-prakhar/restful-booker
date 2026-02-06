@@ -13,6 +13,7 @@ public class AuthSteps {
 
     @Step("Create authentication token with username '{0}' and password '{1}'")
     public void createAuthToken(String username, String password) {
+        System.out.println(username + " " + password);
         String requestBody = String.format("{\"username\":\"%s\",\"password\":\"%s\"}",
                 username, password);
 
@@ -23,6 +24,8 @@ public class AuthSteps {
                 .post(ApiConfig.getAuthEndpoint());
 
         context.setResponse(response);
+
+        System.out.println("Response: " + response.asString());
 
         if (response.getStatusCode() == 200) {
             String token = response.jsonPath().getString("token");

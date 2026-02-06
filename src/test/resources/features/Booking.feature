@@ -17,7 +17,7 @@ Feature: Booking Management
 
   @GetBooking
   Scenario: Get an existing booking
-    When I get the booking with ID 1
+    When I get the booking with ID 2
     Then the response status code should be 200
 
   @GetAllBookings
@@ -49,7 +49,7 @@ Feature: Booking Management
 
   @DeleteBooking
   Scenario: Delete a booking
-    Given I am authenticated with username "auth:username" and password "auth:password"
+    Given I am authenticated with username "auth:username_invalid" and password "auth:password"
     When I create a booking with the following details:
       | firstname         | lastname         | totalprice         | depositpaid         | checkin         | checkout         | additionalneeds         |
       | booking:firstname | booking:lastname | booking:totalprice | booking:depositpaid | booking:checkin | booking:checkout | booking:additionalneeds |
