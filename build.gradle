@@ -72,6 +72,13 @@ task runInitialTests(type: Test) {
     testLogging.showStandardStreams = true
     systemProperties System.properties
 
+    jvmArgs(
+            "--add-opens", "java.base/java.lang=ALL-UNNAMED",
+            "--add-opens", "java.base/java.util=ALL-UNNAMED",
+            "--add-opens", "java.base/java.io=ALL-UNNAMED",
+            "--add-opens", "java.base/java.lang.reflect=ALL-UNNAMED"
+    )
+
     if (project.hasProperty('environment')) {
         systemProperty 'environment', project.property('environment')
     }
@@ -92,6 +99,14 @@ task runInitialTests(type: Test) {
 task retryFailedTests(type: Test) {
     testLogging.showStandardStreams = true
     systemProperties System.properties
+
+    jvmArgs(
+            "--add-opens", "java.base/java.lang=ALL-UNNAMED",
+            "--add-opens", "java.base/java.util=ALL-UNNAMED",
+            "--add-opens", "java.base/java.io=ALL-UNNAMED",
+            "--add-opens", "java.base/java.lang.reflect=ALL-UNNAMED"
+    )
+
 
     onlyIf {
         file("${buildDir}/rerun.txt").exists()
