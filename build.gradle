@@ -127,9 +127,12 @@ task retryFailedTests(type: Test) {
             def normalizedFeatures = failedScenarios
                     .readLines()
                     .collect { line ->
-                        line
-                                .replace("file:///", "")
-                                .replace(project.projectDir.absolutePath + File.separator, "")
+                        def cleanedPath = line.replace("file:///", "")
+
+                        def normalizedPath = cleanedPath.replace("\\", "/")
+                        def projectRoot = project.projectDir.absolutePath.replace("\\", "/") + "/"
+
+                        normalizedPath.replace(projectRoot, "")
                     }
                     .join(",")
 
