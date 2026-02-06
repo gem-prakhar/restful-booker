@@ -127,15 +127,23 @@ task retryFailedTests(type: Test) {
             def normalizedFeatures = failedScenarios
                     .readLines()
                     .collect { line ->
-                        def cleanedPath = line.replace("file:///", "")
+                        // 1. Remove URI prefixes and normalize slashes
+                        def normalized = line.replace("file:///", "").replace("file:/", "").replace("\\", "/")
 
-                        def normalizedPath = cleanedPath.replace("\\", "/")
-                        def projectRoot = project.projectDir.absolutePath.replace("\\", "/") + "/"
+                        // 2. Robustly find the start of the relative path
+                        // This ignores the drive letter/project root completely and looks for the standard folder structure
+                        def srcIndex = normalized.indexOf("src/test/resources")
 
-                        normalizedPath.replace(projectRoot, "")
+                        if (srcIndex >= 0) {
+                            return normalized.substring(srcIndex)
+                        } else {
+                            // Fallback: If strict folder structure isn't found, try standard replacement
+                            def projectRoot = project.projectDir.absolutePath.replace("\\", "/")
+                            if (!projectRoot.endsWith("/")) projectRoot += "/"
+                            return normalized.replace(projectRoot, "")
+                        }
                     }
                     .join(",")
-
             systemProperty 'cucumber.features', normalizedFeatures
             systemProperty 'maxRetries', project.hasProperty('maxRetries') ? project.property('maxRetries') : '3'
         }
