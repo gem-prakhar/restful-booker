@@ -119,11 +119,12 @@ task retryFailedTests(type: Test) {
     }
 
     doFirst {
+        println "It's running upto this point"
         def rerunFile = file("target/rerun.txt")
         if (rerunFile.exists()) {
             def rawContent = rerunFile.text.trim()
             println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            println "🔄 Parsing rerun.txt for retry"
+            println "Parsing rerun.txt for retry"
             println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             println "Raw content: ${rawContent}"
             println ""
@@ -136,7 +137,7 @@ task retryFailedTests(type: Test) {
                         scenario = scenario.trim()
                         if (scenario.isEmpty()) return null
 
-                        println "  📍 Processing: ${scenario}"
+                        println "Processing: ${scenario}"
 
                         // Remove URI prefix (file:///, file:/, or file:)
                         def normalized = scenario
