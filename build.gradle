@@ -36,6 +36,7 @@ dependencies {
     testAnnotationProcessor("org.projectlombok:lombok:1.18.42")
     compileOnly("com.github.invictum:serenity-reportportal-integration:1.5.7")
 }
+
 tasks.withType(Test).configureEach {
     if (System.getProperty("testClass")) {
         filter {
@@ -43,10 +44,10 @@ tasks.withType(Test).configureEach {
         }
     }
 }
+
 test {
     testLogging.showStandardStreams = true
     systemProperties System.properties
-
 
     jvmArgs(
             "--add-opens", "java.base/java.lang=ALL-UNNAMED",
@@ -95,9 +96,9 @@ task runInitialTests(type: Test) {
 
     doLast {
         if (file("target/rerun.txt").exists()) {
-            println "First run complete. Failures detected, will retry."
+            println "✅ First run complete. Failures detected, will retry."
         } else {
-            println "All tests passed on first attempt!"
+            println "✅ All tests passed on first attempt!"
         }
     }
 }
@@ -113,7 +114,6 @@ task retryFailedTests(type: Test) {
             "--add-opens", "java.base/java.lang.reflect=ALL-UNNAMED"
     )
 
-
     onlyIf {
         file("target/rerun.txt").exists()
     }
@@ -121,29 +121,86 @@ task retryFailedTests(type: Test) {
     doFirst {
         def rerunFile = file("target/rerun.txt")
         if (rerunFile.exists()) {
-            def failedScenarios = rerunFile.text.trim()
-            println "Retrying failed scenarios: ${failedScenarios}"
+            def rawContent = rerunFile.text.trim()
+            println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            println "🔄 Parsing rerun.txt for retry"
+            println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            println "Raw content: ${rawContent}"
+            println ""
 
-            def normalizedFeatures = failedScenarios
-                    .readLines()
-                    .collect { line ->
-                        // 1. Remove URI prefixes and normalize slashes
-                        def normalized = line.replace("file:///", "").replace("file:/", "").replace("\\", "/")
+            // Parse the rerun.txt content (can be space-separated or newline-separated)
+            def scenarios = rawContent.split(/[\s\n]+/)
 
-                        // 2. Robustly find the start of the relative path
-                        // This ignores the drive letter/project root completely and looks for the standard folder structure
+            def normalizedFeatures = scenarios
+                    .collect { scenario ->
+                        scenario = scenario.trim()
+                        if (scenario.isEmpty()) return null
+
+                        println "  📍 Processing: ${scenario}"
+
+                        // Remove URI prefix (file:///, file:/, or file:)
+                        def normalized = scenario
+                                .replaceFirst(/^file:\/\/\//, "")
+                                .replaceFirst(/^file:\//, "")
+                                .replaceFirst(/^file:/, "")
+
+                        // Convert backslashes to forward slashes
+                        normalized = normalized.replace("\\", "/")
+
+                        println "     After URI removal: ${normalized}"
+
+                        // Find the src/test/resources part
                         def srcIndex = normalized.indexOf("src/test/resources")
 
                         if (srcIndex >= 0) {
-                            return normalized.substring(srcIndex)
+                            // Extract everything from src/test/resources onwards (including line number)
+                            def relativePath = normalized.substring(srcIndex)
+                            println "     ✅ Extracted: ${relativePath}"
+                            return relativePath
                         } else {
-                            // Fallback: If strict folder structure isn't found, try standard replacement
-                            def projectRoot = project.projectDir.absolutePath.replace("\\", "/")
-                            if (!projectRoot.endsWith("/")) projectRoot += "/"
-                            return normalized.replace(projectRoot, "")
+                            println "     ⚠️  Could not find 'src/test/resources' in path, trying fallback..."
+
+                            // Fallback: try to remove Windows drive letter and workspace path
+                            normalized = normalized.replaceFirst(/^[A-Za-z]:\//, "")
+
+                            // Try to find and remove workspace path
+                            def workspaceParts = project.projectDir.absolutePath.replace("\\", "/").split("/")
+                            def projectName = workspaceParts[-1]
+
+                            println "     Project name: ${projectName}"
+
+                            def projectIndex = normalized.indexOf("/${projectName}/")
+                            if (projectIndex >= 0) {
+                                normalized = normalized.substring(projectIndex + projectName.length() + 2)
+                                println "     ✅ Fallback result: ${normalized}"
+                                return normalized
+                            } else {
+                                // Last resort: just try to find src/ anywhere
+                                def srcIdx = normalized.indexOf("src/")
+                                if (srcIdx >= 0) {
+                                    normalized = normalized.substring(srcIdx)
+                                    println "     ✅ Last resort: ${normalized}"
+                                    return normalized
+                                }
+                            }
+
+                            println "     ❌ Could not normalize: ${scenario}"
+                            return null
                         }
                     }
-                    .join(",")
+                    .findAll { it != null } // Remove null entries
+                    .join(" ") // Cucumber expects space-separated features
+
+            println ""
+            println "🎯 Final cucumber.features value:"
+            println "   ${normalizedFeatures}"
+            println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            println ""
+
+            if (normalizedFeatures.isEmpty()) {
+                throw new GradleException("❌ Failed to parse rerun.txt - no valid scenarios found")
+            }
+
             systemProperty 'cucumber.features', normalizedFeatures
             systemProperty 'maxRetries', project.hasProperty('maxRetries') ? project.property('maxRetries') : '3'
         }
@@ -162,17 +219,17 @@ task testWithRetry {
 
         for (int i = 1; i <= maxRetryRounds && rerunFile.exists(); i++) {
             println "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            println "Retry Round ${i} of ${maxRetryRounds}"
+            println "🔄 Retry Round ${i} of ${maxRetryRounds}"
             println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 
             tasks.retryFailedTests.execute()
 
             // Check if there are still failures
             if (!rerunFile.exists()) {
-                println "\nAll tests passed after ${i} retry round(s)!"
+                println "\n✅ All tests passed after ${i} retry round(s)!"
                 break
             } else if (i == maxRetryRounds) {
-                println "\nSome tests still failing after ${maxRetryRounds} retry rounds"
+                println "\n⚠️ Some tests still failing after ${maxRetryRounds} retry rounds"
                 println "Failed scenarios:"
                 println rerunFile.text
             }
@@ -182,9 +239,8 @@ task testWithRetry {
     finalizedBy aggregate
 }
 
-
 tasks.named('aggregate') {
-    mustRunAfter test
+    mustRunAfter test, runInitialTests, retryFailedTests
 }
 
 gradle.startParameter.continueOnFailure = true
@@ -196,18 +252,18 @@ serenity {
 
 task verifyAIReport {
     doLast {
-        def aiReportFile = file("${buildDir}/ai-failures.json")
-        def rerunSummaryFile = file("${buildDir}/rerun-summary.json")
+        def aiReportFile = file("target/ai-failures.json")
+        def rerunSummaryFile = file("target/rerun-summary.json")
 
         if (aiReportFile.exists()) {
-            println "AI Failure Report generated successfully"
+            println "✅ AI Failure Report generated successfully"
             println "   Location: ${aiReportFile.absolutePath}"
             println "   Size: ${aiReportFile.length()} bytes"
 
             // Parse and display summary
             def reportText = aiReportFile.text
             if (reportText.contains('"retryMetadata"')) {
-                println "\nRetry Statistics:"
+                println "\n📊 Retry Statistics:"
                 if (reportText.contains('"scenariosPassedAfterRetry"')) {
                     def passedAfterRetry = (reportText =~ /"scenariosPassedAfterRetry":\s*(\d+)/)[0][1]
                     println "   Scenarios passed after retry: ${passedAfterRetry}"
@@ -218,12 +274,12 @@ task verifyAIReport {
                 }
             }
         } else {
-            println "AI Failure Report not found at expected location"
+            println "⚠️ AI Failure Report not found at expected location"
             println "   Expected: ${aiReportFile.absolutePath}"
         }
 
         if (rerunSummaryFile.exists()) {
-            println "\nRetry Summary generated successfully"
+            println "\n✅ Retry Summary generated successfully"
             println "   Location: ${rerunSummaryFile.absolutePath}"
         }
     }
