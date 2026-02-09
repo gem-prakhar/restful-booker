@@ -75,6 +75,7 @@ test {
     ignoreFailures = true
 }
 
+// Initial test run - no retries
 task runInitialTests(type: Test) {
     testLogging.showStandardStreams = true
     systemProperties System.properties
@@ -103,7 +104,8 @@ task runInitialTests(type: Test) {
     }
 }
 
-task retryFailedTests(type: Test) {
+// Retry round 1
+task retryRound1(type: Test) {
     testLogging.showStandardStreams = true
     systemProperties System.properties
 
@@ -119,17 +121,19 @@ task retryFailedTests(type: Test) {
     }
 
     doFirst {
-        println "It's running upto this point"
+        println "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        println "🔄 Retry Round 1 of 2"
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+
         def rerunFile = file("target/rerun.txt")
         if (rerunFile.exists()) {
             def rawContent = rerunFile.text.trim()
             println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            println "Parsing rerun.txt for retry"
+            println "🔄 Parsing rerun.txt for retry"
             println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             println "Raw content: ${rawContent}"
             println ""
 
-            // Parse the rerun.txt content (can be space-separated or newline-separated)
             def scenarios = rawContent.split(/[\s\n]+/)
 
             def normalizedFeatures = scenarios
@@ -137,34 +141,30 @@ task retryFailedTests(type: Test) {
                         scenario = scenario.trim()
                         if (scenario.isEmpty()) return null
 
-                        println "Processing: ${scenario}"
+                        println "  📍 Processing: ${scenario}"
 
-                        // Remove URI prefix (file:///, file:/, or file:)
+                        // Remove URI prefix
                         def normalized = scenario
                                 .replaceFirst(/^file:\/\/\//, "")
                                 .replaceFirst(/^file:\//, "")
                                 .replaceFirst(/^file:/, "")
 
-                        // Convert backslashes to forward slashes
                         normalized = normalized.replace("\\", "/")
 
                         println "     After URI removal: ${normalized}"
 
-                        // Find the src/test/resources part
+                        // Find src/test/resources
                         def srcIndex = normalized.indexOf("src/test/resources")
 
                         if (srcIndex >= 0) {
-                            // Extract everything from src/test/resources onwards (including line number)
                             def relativePath = normalized.substring(srcIndex)
                             println "     ✅ Extracted: ${relativePath}"
                             return relativePath
                         } else {
-                            println "     ⚠️  Could not find 'src/test/resources' in path, trying fallback..."
+                            println "     ⚠️  Could not find 'src/test/resources', trying fallback..."
 
-                            // Fallback: try to remove Windows drive letter and workspace path
                             normalized = normalized.replaceFirst(/^[A-Za-z]:\//, "")
 
-                            // Try to find and remove workspace path
                             def workspaceParts = project.projectDir.absolutePath.replace("\\", "/").split("/")
                             def projectName = workspaceParts[-1]
 
@@ -176,7 +176,6 @@ task retryFailedTests(type: Test) {
                                 println "     ✅ Fallback result: ${normalized}"
                                 return normalized
                             } else {
-                                // Last resort: just try to find src/ anywhere
                                 def srcIdx = normalized.indexOf("src/")
                                 if (srcIdx >= 0) {
                                     normalized = normalized.substring(srcIdx)
@@ -189,8 +188,8 @@ task retryFailedTests(type: Test) {
                             return null
                         }
                     }
-                    .findAll { it != null } // Remove null entries
-                    .join(" ") // Cucumber expects space-separated features
+                    .findAll { it != null }
+                    .join(" ")
 
             println ""
             println "🎯 Final cucumber.features value:"
@@ -210,38 +209,144 @@ task retryFailedTests(type: Test) {
     ignoreFailures = true
 }
 
-task testWithRetry {
-    dependsOn runInitialTests
+// Retry round 2
+task retryRound2(type: Test) {
+    testLogging.showStandardStreams = true
+    systemProperties System.properties
+
+    jvmArgs(
+            "--add-opens", "java.base/java.lang=ALL-UNNAMED",
+            "--add-opens", "java.base/java.util=ALL-UNNAMED",
+            "--add-opens", "java.base/java.io=ALL-UNNAMED",
+            "--add-opens", "java.base/java.lang.reflect=ALL-UNNAMED"
+    )
+
+    onlyIf {
+        file("target/rerun.txt").exists()
+    }
+
+    doFirst {
+        println "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        println "🔄 Retry Round 2 of 2"
+        println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+
+        def rerunFile = file("target/rerun.txt")
+        if (rerunFile.exists()) {
+            def rawContent = rerunFile.text.trim()
+            println "🔄 Parsing rerun.txt for retry round 2"
+            println "Raw content: ${rawContent}"
+            println ""
+
+            def scenarios = rawContent.split(/[\s\n]+/)
+
+            def normalizedFeatures = scenarios
+                    .collect { scenario ->
+                        scenario = scenario.trim()
+                        if (scenario.isEmpty()) return null
+
+                        def normalized = scenario
+                                .replaceFirst(/^file:\/\/\//, "")
+                                .replaceFirst(/^file:\//, "")
+                                .replaceFirst(/^file:/, "")
+
+                        normalized = normalized.replace("\\", "/")
+
+                        def srcIndex = normalized.indexOf("src/test/resources")
+
+                        if (srcIndex >= 0) {
+                            return normalized.substring(srcIndex)
+                        } else {
+                            normalized = normalized.replaceFirst(/^[A-Za-z]:\//, "")
+
+                            def workspaceParts = project.projectDir.absolutePath.replace("\\", "/").split("/")
+                            def projectName = workspaceParts[-1]
+
+                            def projectIndex = normalized.indexOf("/${projectName}/")
+                            if (projectIndex >= 0) {
+                                return normalized.substring(projectIndex + projectName.length() + 2)
+                            } else {
+                                def srcIdx = normalized.indexOf("src/")
+                                if (srcIdx >= 0) {
+                                    return normalized.substring(srcIdx)
+                                }
+                            }
+                            return null
+                        }
+                    }
+                    .findAll { it != null }
+                    .join(" ")
+
+            println "🎯 Final cucumber.features: ${normalizedFeatures}"
+            println ""
+
+            if (normalizedFeatures.isEmpty()) {
+                throw new GradleException("❌ Failed to parse rerun.txt - no valid scenarios found")
+            }
+
+            systemProperty 'cucumber.features', normalizedFeatures
+            systemProperty 'maxRetries', project.hasProperty('maxRetries') ? project.property('maxRetries') : '3'
+        }
+    }
+
+    ignoreFailures = true
+}
+
+task checkAfterRetry1 {
+    dependsOn retryRound1
+
+    doLast {
+        if (!file("target/rerun.txt").exists()) {
+            println "\n✅ All tests passed after retry round 1!"
+        } else {
+            println "\n⚠️ Some tests still failing, will proceed to retry round 2"
+        }
+    }
+}
+
+task checkAfterRetry2 {
+    dependsOn retryRound2
 
     doLast {
         def rerunFile = file("target/rerun.txt")
-        def maxRetryRounds = project.hasProperty('maxRetryRounds') ?
-                Integer.parseInt(project.property('maxRetryRounds')) : 2
-
-        for (int i = 1; i <= maxRetryRounds && rerunFile.exists(); i++) {
-            println "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            println "🔄 Retry Round ${i} of ${maxRetryRounds}"
-            println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-
-            tasks.retryFailedTests.execute()
-
-            // Check if there are still failures
-            if (!rerunFile.exists()) {
-                println "\n✅ All tests passed after ${i} retry round(s)!"
-                break
-            } else if (i == maxRetryRounds) {
-                println "\n⚠️ Some tests still failing after ${maxRetryRounds} retry rounds"
-                println "Failed scenarios:"
-                println rerunFile.text
-            }
+        if (!rerunFile.exists()) {
+            println "\n✅ All tests passed after retry round 2!"
+        } else {
+            println "\n⚠️ Some tests still failing after 2 retry rounds"
+            println "Failed scenarios:"
+            println rerunFile.text
         }
     }
+}
+
+task testWithRetry {
+    dependsOn runInitialTests
+
+    // Configure the dependency chain
+    if (project.hasProperty('maxRetryRounds')) {
+        def rounds = Integer.parseInt(project.property('maxRetryRounds'))
+        if (rounds >= 1) {
+            dependsOn retryRound1, checkAfterRetry1
+        }
+        if (rounds >= 2) {
+            dependsOn retryRound2, checkAfterRetry2
+            retryRound2.mustRunAfter checkAfterRetry1
+            checkAfterRetry2.mustRunAfter retryRound2
+        }
+    } else {
+        // Default: 2 rounds
+        dependsOn retryRound1, checkAfterRetry1, retryRound2, checkAfterRetry2
+        retryRound2.mustRunAfter checkAfterRetry1
+        checkAfterRetry2.mustRunAfter retryRound2
+    }
+
+    retryRound1.mustRunAfter runInitialTests
+    checkAfterRetry1.mustRunAfter retryRound1
 
     finalizedBy aggregate
 }
 
 tasks.named('aggregate') {
-    mustRunAfter test, runInitialTests, retryFailedTests
+    mustRunAfter test, runInitialTests, retryRound1, retryRound2
 }
 
 gradle.startParameter.continueOnFailure = true
@@ -261,7 +366,6 @@ task verifyAIReport {
             println "   Location: ${aiReportFile.absolutePath}"
             println "   Size: ${aiReportFile.length()} bytes"
 
-            // Parse and display summary
             def reportText = aiReportFile.text
             if (reportText.contains('"retryMetadata"')) {
                 println "\n📊 Retry Statistics:"
