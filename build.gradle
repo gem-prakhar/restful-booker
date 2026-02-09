@@ -10,6 +10,10 @@ repositories {
     mavenCentral()
 }
 
+serenity {
+    requirementsDir = "src/test/resources/features"
+}
+
 dependencies {
     testImplementation "net.serenity-bdd:serenity-core:4.0.1"
     testImplementation "net.serenity-bdd:serenity-cucumber:4.0.1"
